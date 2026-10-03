@@ -14,7 +14,10 @@ from sklearn.impute import SimpleImputer
 
 
 # 1. Explore and understand the dataset
-#--------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+
+
+print ("1. EXPLORING THE DATASET")
 
 df = pd.read_csv("economy.csv")
 print ("Dataset shape: ")
@@ -324,7 +327,7 @@ plt.show()
 
 
 # MAIN OBSERVATIONS
-#--------------------------------------------------------------------------------------
+#-------------------------------
 
 
 mean_by_airline = (
@@ -384,7 +387,10 @@ print(
 
 
 # 2. Prepare the data
-#---------------------------------------------------
+#-----------------------------------------------------------------------------
+
+print ("2. PREPARING THE DATA")
+
 
 data["month"] = data["date_parsed"].dt.month
 
@@ -505,3 +511,331 @@ print ("""\nPreprocessing pipeline created.
 \nThe preprocessing pipeline has NOT been fitted yet.
 It will be fitted only using the training data
 after the train/test split.""")
+
+
+# 3. Create training and test data
+#-----------------------------------------------------------------------------
+
+from sklearn.model_selection import train_test_split
+
+# 80% testing, 20% training
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x,
+    y,
+    test_size = 0.20,
+    random_state = 42
+)
+
+print (f"""
+3. CREATING TRAINING AND TEST DATA
+
+
+Training set:
+    - x_train: {x_train.shape}
+    - y_train: {y_train.shape}
+
+Test set:
+    - x_test: {x_test.shape}
+    - y_test: {y_test.shape}""")
+
+
+
+
+# 4. Build at least two regression models
+#-----------------------------------------------------------------------------
+
+
+# The chosen regression algorithms are:
+# 1. Linear Regression
+# 2. Rando Forest Regression
+
+# Both use the same preprocessing strategy included inside the pipelines
+# from "PREPROCESSING" section  ↑ ↑ ↑
+
+
+
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.pipeline import Pipeline
+
+
+
+print ("4. REGRESSION MODELS")
+
+
+
+def create_preprocessor():      # independent preprocessor for each model
+
+    return ColumnTransformer(
+        transformers = [
+            (
+                "num",
+                numeric_preprocessor,
+                numeric_features
+            ),
+            (
+                "cat",
+                categorical_preprocessor,
+                categorical_features
+            )
+        ]
+    )
+
+
+# Linear Regression
+linear_model = Pipeline (
+    steps = [
+        (
+            "preprocessor",
+            create_preprocessor()
+        ),
+        (
+            "model",
+            LinearRegression()
+        )
+    ]
+)
+
+# Random Forest
+rand_for_model  = Pipeline(
+    steps = [
+        (
+            "preprocessor",
+            create_preprocessor()
+        ),
+        (
+            "model",
+            RandomForestRegressor(
+                n_estimators= 100,
+                random_state= 42,
+                n_jobs= -1
+            )
+        )
+    ]
+)
+
+
+# TRAINING, same set
+print ("\n\nCurrently training Linear Regression ⏳")
+
+linear_model.fit(
+    x_train,
+    y_train
+)
+
+print ("LR Training finished")
+print ("\nCurrently training Random Forest ⏳")
+
+rand_for_model.fit(
+    x_train,
+    y_train
+)
+
+print ("RF Training finished")
+
+
+
+# 5. Evaluate the models
+#-----------------------------------------------------------------------------
+
+
+# Mean Absolute Error (MAE) --> lower = smaller prediction error
+# Root Mean Squared Error (RMSE) --> lower = smaller prediction error
+# R-squared (R^2) --> higher = explains larger proportion of variation
+
+
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score
+)
+
+
+# predictions
+
+linear_predictions = linear_model.predict (x_test)
+
+rand_for_predictions = rand_for_model.predict (x_test)
+
+
+# metrics calculations
+def metrics_calc(model_name, actual, predicted):
+
+    mae = mean_absolute_error(
+        actual,
+        predicted
+    )
+    rmse = np.sqrt(
+        mean_squared_error(
+        actual,
+        predicted
+        )
+    )
+    r2 = r2_score(
+        actual,
+        predicted
+    )
+
+    return {
+        "Model": model_name,
+        "MAE": mae,
+        "RMSE": rmse,
+        "R^2": r2
+    }
+
+linear_results = metrics_calc(
+    "Linear Regression",
+    y_test,
+    linear_predictions
+)
+
+rand_for_results = metrics_calc(
+    "Random Forest Regression",
+    y_test,
+    rand_for_predictions
+)
+
+# show results
+results = pd.DataFrame(
+    [
+        linear_results,
+        rand_for_results
+    ]
+)
+
+print ("\n\n5. MODEL EVALUATION\n")
+print ({results.to_string(index=False)})
+
+
+
+
+# 6. Improve and tune the models
+#-----------------------------------------------------------------------------
+
+
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
+
+# 6.1 TUNING LR ----------
+
+# new pipeline
+tuned_linear_pipeline = Pipeline (
+    steps = [
+        (
+            "preprocessor",
+            create_preprocessor()
+        ),
+        (
+            "model",
+            LinearRegression()
+        )
+    ]
+)
+# params
+linear_parameters = {
+    "model__fit_intercept": [
+        True,
+        False
+    ]
+}
+# 5-fold cross-validation
+linear_search = GridSearchCV(
+    estimator=tuned_linear_pipeline,
+    param_grid=linear_parameters,
+    cv=5,
+    scoring="neg_root_mean_squared_error",
+    n_jobs=-1,
+    refit=True
+)
+
+linear_search.fit(
+    x_train,
+    y_train
+)
+# show
+print ("\n\n6. IMPROVED MODELS RESULTS\n")
+print("\nBest Linear Regression parameters:")
+print(linear_search.best_params_)
+
+print(
+    "\nBest cross-validation RMSE:"
+)
+
+print(
+    -linear_search.best_score_
+)
+
+# 6.2 TUNING RFR ---------
+
+# new pipeline
+tuned_rf_pipeline = Pipeline(
+    steps=[
+        (
+            "preprocessor",
+            create_preprocessor()
+        ),
+        (
+            "model",
+            RandomForestRegressor(
+                random_state=42,
+                n_jobs=-1
+            )
+        )
+    ]
+)
+#params
+rf_parameters = {
+    "model__n_estimators": [
+        100,
+        150
+    ],
+
+    "model__max_depth": [
+        None,
+        15,
+        25
+    ],
+
+    "model__min_samples_split": [
+        2,
+        5
+    ],
+
+    "model__min_samples_leaf": [
+        1,
+        2
+    ],
+
+    "model__max_features": [
+        "sqrt",
+        0.7,
+        1.0
+    ]
+}
+rf_search = RandomizedSearchCV(         # limits and randomizes the combinations
+    estimator=tuned_rf_pipeline,
+    param_distributions=rf_parameters,
+    n_iter=4,
+    cv=5,
+    scoring="neg_root_mean_squared_error",
+    random_state=42,
+    n_jobs=-1,
+    refit=True
+)
+
+rf_search.fit(
+    x_train,
+    y_train
+)
+#show
+print("\nBest Random Forest parameters:")
+print(rf_search.best_params_)
+
+print(
+    "\nBest cross-validation RMSE:"
+)
+
+print(
+    -rf_search.best_score_
+)
