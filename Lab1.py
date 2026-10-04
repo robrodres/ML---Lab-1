@@ -561,7 +561,7 @@ from sklearn.pipeline import Pipeline
 
 
 
-print ("4. REGRESSION MODELS")
+print ("\n\n4. REGRESSION MODELS")
 
 
 
@@ -617,7 +617,7 @@ rand_for_model  = Pipeline(
 
 
 # TRAINING, same set
-print ("\n\nCurrently training Linear Regression ⏳")
+print ("\nCurrently training Linear Regression ⏳")
 
 linear_model.fit(
     x_train,
@@ -839,3 +839,207 @@ print(
 print(
     -rf_search.best_score_
 )
+
+tuned_rf_pipeline = Pipeline(
+    steps=[
+        (
+            "preprocessor",
+            create_preprocessor()
+        ),
+        (
+            "model",
+            RandomForestRegressor(
+                random_state=42,
+                n_jobs=-1
+            )
+        )
+    ]
+)
+
+rf_parameters = {
+    "model__n_estimators": [
+        100,
+        150
+    ],
+
+    "model__max_depth": [
+        None,
+        15,
+        25
+    ],
+
+    "model__min_samples_split": [
+        2,
+        5
+    ],
+
+    "model__min_samples_leaf": [
+        1,
+        2
+    ],
+
+    "model__max_features": [
+        "sqrt",
+        0.7,
+        1.0
+    ]
+}
+
+rf_parameters = {
+    "model__n_estimators": [
+        100,
+        150
+    ],
+
+    "model__max_depth": [
+        None,
+        15,
+        25
+    ],
+
+    "model__min_samples_split": [
+        2,
+        5
+    ],
+
+    "model__min_samples_leaf": [
+        1,
+        2
+    ],
+
+    "model__max_features": [
+        "sqrt",
+        0.7,
+        1.0
+    ]
+}
+
+rf_search = RandomizedSearchCV(
+    estimator=tuned_rf_pipeline,
+    param_distributions=rf_parameters,
+    n_iter=4,
+    cv=5,
+    scoring="neg_root_mean_squared_error",
+    random_state=42,
+    n_jobs=-1,
+    refit=True
+)
+
+rf_search.fit(
+    x_train,
+    y_train
+)
+
+
+
+# getting both tuned models -------
+
+tuned_linear_model = (
+    linear_search.best_estimator_
+)
+
+tuned_random_forest_model = (
+    rf_search.best_estimator_
+)
+
+
+tuned_linear_predictions = linear_search.predict(x_test)
+
+
+tuned_rf_predictions = rf_search.predict(x_test)
+
+
+tuned_linear_results = metrics_calc(
+    "Linear Regression - Tuned",
+    y_test,
+    tuned_linear_predictions
+)
+
+tuned_rf_results = metrics_calc(
+    "Random Forest Regression - Tuned",
+    y_test,
+    tuned_rf_predictions
+)
+
+tuned_results = pd.DataFrame(
+    [
+        tuned_linear_results,
+        tuned_rf_results
+    ]
+)
+
+print(
+    tuned_results.to_string(index=False)
+)
+
+# comparison
+
+comparison = pd.DataFrame(
+    [
+        linear_results,
+        rand_for_results,
+        tuned_linear_results,
+        tuned_rf_results
+    ]
+)
+
+print(
+    comparison.to_string(index=False)
+)
+
+#improvement calculation
+
+linear_improvement = pd.DataFrame({
+    "Metric": [
+        "MAE",
+        "RMSE",
+        "R2"
+    ],
+
+    "Before tuning": [
+        linear_results["MAE"],
+        linear_results["RMSE"],
+        linear_results["R2"]
+    ],
+
+    "After tuning": [
+        tuned_linear_results["MAE"],
+        tuned_linear_results["RMSE"],
+        tuned_linear_results["R2"]
+    ]
+})
+
+rf_improvement = pd.DataFrame({
+    "Metric": [
+        "MAE",
+        "RMSE",
+        "R2"
+    ],
+
+    "Before tuning": [
+        rand_for_results["MAE"],
+        rand_for_results["RMSE"],
+        rand_for_results["R2"]
+    ],
+
+    "After tuning": [
+        tuned_rf_results["MAE"],
+        tuned_rf_results["RMSE"],
+        tuned_rf_results["R2"]
+    ]
+})
+
+print("Linear Regression:")
+print(
+    linear_improvement.to_string(index=False)
+)
+
+print("\nRandom Forest Regression:")
+print(
+    rf_improvement.to_string(index=False)
+)
+
+
+# 7. Interpret and compare the results
+
+
