@@ -29,8 +29,8 @@ print (df.columns.tolist())
 print ("\nData types: ")
 print (df.dtypes)
 
-print ("\nFirst 5 rows: ")
-print (df.head().to_string())
+print ("\nFirst 20 rows: ")
+print (df.head(20).to_string())
 
 print ("\nBasic descriptive statistics: ")
 print (df.describe(include="all").T.to_string())
@@ -41,7 +41,7 @@ print ("\nMissin values in each column: ")
 miss_val = df.isnull().sum()
 print (miss_val.to_string())
 print ("\nTotal missing values: ")
-print(miss_val.sum)
+print(miss_val.sum())
 
 # duplicates
 
@@ -518,7 +518,7 @@ after the train/test split.""")
 
 from sklearn.model_selection import train_test_split
 
-# 80% testing, 20% training
+# 80% training, 20% test
 
 x_train, x_test, y_train, y_test = train_test_split(
     x,
@@ -681,7 +681,7 @@ def metrics_calc(model_name, actual, predicted):
         "Model": model_name,
         "MAE": mae,
         "RMSE": rmse,
-        "R^2": r2
+        "R2": r2
     }
 
 linear_results = metrics_calc(
@@ -705,7 +705,7 @@ results = pd.DataFrame(
 )
 
 print ("\n\n5. MODEL EVALUATION\n")
-print ({results.to_string(index=False)})
+print (results.to_string(index=False))
 
 
 
@@ -820,7 +820,7 @@ rf_search = RandomizedSearchCV(         # limits and randomizes the combinations
     cv=5,
     scoring="neg_root_mean_squared_error",
     random_state=42,
-    n_jobs=-1,
+    n_jobs=1,
     refit=True
 )
 
@@ -839,98 +839,6 @@ print(
 print(
     -rf_search.best_score_
 )
-
-tuned_rf_pipeline = Pipeline(
-    steps=[
-        (
-            "preprocessor",
-            create_preprocessor()
-        ),
-        (
-            "model",
-            RandomForestRegressor(
-                random_state=42,
-                n_jobs=-1
-            )
-        )
-    ]
-)
-
-rf_parameters = {
-    "model__n_estimators": [
-        100,
-        150
-    ],
-
-    "model__max_depth": [
-        None,
-        15,
-        25
-    ],
-
-    "model__min_samples_split": [
-        2,
-        5
-    ],
-
-    "model__min_samples_leaf": [
-        1,
-        2
-    ],
-
-    "model__max_features": [
-        "sqrt",
-        0.7,
-        1.0
-    ]
-}
-
-rf_parameters = {
-    "model__n_estimators": [
-        100,
-        150
-    ],
-
-    "model__max_depth": [
-        None,
-        15,
-        25
-    ],
-
-    "model__min_samples_split": [
-        2,
-        5
-    ],
-
-    "model__min_samples_leaf": [
-        1,
-        2
-    ],
-
-    "model__max_features": [
-        "sqrt",
-        0.7,
-        1.0
-    ]
-}
-
-rf_search = RandomizedSearchCV(
-    estimator=tuned_rf_pipeline,
-    param_distributions=rf_parameters,
-    n_iter=4,
-    cv=5,
-    scoring="neg_root_mean_squared_error",
-    random_state=42,
-    n_jobs=-1,
-    refit=True
-)
-
-rf_search.fit(
-    x_train,
-    y_train
-)
-
-
 
 # getting both tuned models -------
 
@@ -1041,5 +949,203 @@ print(
 
 
 # 7. Interpret and compare the results
+#-----------------------------------------------------------------------------
 
 
+
+from typing import cast
+from sklearn.pipeline import Pipeline
+
+
+# best tuned Random Forest pipeline
+best_rf_pipeline = cast(
+    Pipeline,
+    rf_search.best_estimator_
+)
+
+# preprocessing step
+rf_preprocessor = best_rf_pipeline.named_steps[
+    "preprocessor"
+]
+
+# trained Random Forest
+rf_model = best_rf_pipeline.named_steps[
+    "model"
+]
+
+# feature names after preprocessing
+feature_names = (
+    rf_preprocessor
+    .get_feature_names_out()
+)
+
+# feature importance values
+importances = rf_model.feature_importances_
+
+feature_importance = pd.DataFrame({
+    "Feature": feature_names,
+    "Importance": importances
+})
+
+feature_importance = (
+    feature_importance
+    .sort_values(
+        "Importance",
+        ascending=False
+    )
+)
+
+print("Top 20 encoded features:")
+print(
+    feature_importance
+    .head(20)
+    .to_string(index=False)
+)
+
+top_features = (
+    feature_importance
+    .head(15)
+    .sort_values(
+        "Importance"
+    )
+)
+
+plt.figure(figsize=(10, 7))
+
+plt.barh(
+    top_features["Feature"],
+    top_features["Importance"]
+)
+
+plt.xlabel("Importance")
+plt.ylabel("Feature")
+
+plt.title(
+    "Top 15 Feature Importances - Random Forest"
+)
+
+plt.tight_layout()
+plt.show()
+
+def get_original_feature(encoded_name):
+
+    # Numerical features
+    for feature in numeric_features:
+
+        if encoded_name == f"num__{feature}":
+            return feature
+
+    # Categorical features
+    for feature in categorical_features:
+
+        prefix = f"cat__{feature}_"
+
+        if encoded_name.startswith(prefix):
+            return feature
+
+    return encoded_name
+
+
+feature_importance["Original Feature"] = (
+    feature_importance["Feature"]
+    .apply(get_original_feature)
+)
+
+aggregated_importance = (
+    feature_importance
+    .groupby("Original Feature")["Importance"]
+    .sum()
+    .sort_values(
+        ascending=False
+    )
+)
+
+print(
+    "Feature importance by original variable:"
+)
+
+print(
+    aggregated_importance.to_string()
+)
+
+aggregated_plot = (
+    aggregated_importance
+    .sort_values()
+)
+
+plt.figure(figsize=(10, 6))
+
+plt.barh(
+    aggregated_plot.index,
+    aggregated_plot.values
+)
+
+plt.xlabel("Total importance")
+plt.ylabel("Feature")
+
+plt.title(
+    "Feature Importance by Original Variable"
+)
+
+plt.tight_layout()
+plt.show()
+
+# comparison
+
+final_comparison = (
+    tuned_results
+    .sort_values(
+        "RMSE"
+    )
+    .reset_index(drop=True)
+)
+
+print(
+    final_comparison.to_string(index=False)
+)
+
+best_model = final_comparison.iloc[0]
+
+print("\nBest model based on RMSE:")
+print(
+    best_model["Model"]
+)
+
+print(
+    "\nMAE:",
+    best_model["MAE"]
+)
+
+print(
+    "RMSE:",
+    best_model["RMSE"]
+)
+
+print(
+    "R2:",
+    best_model["R2"]
+)
+
+best_r2_model = tuned_results.loc[
+    tuned_results["R2"].idxmax()
+]
+
+print("\nBest model based on R2:")
+print(
+    best_r2_model["Model"]
+)
+
+print(
+    "R2:",
+    best_r2_model["R2"]
+)
+
+
+print ("""\n\nWhile Linear Regression can be simpler and faster, marking how input variables
+are associated with the predicted ticket price, it assumes a linear relationship between
+the input variables and the target, which does not make it the best option for more
+complex relationships.
+
+Random Forest Regression is better at capturing nonlinear relationships and interactions between
+unespecified variables, so at the cost of a higher computational and lower interpretability compared
+to the Linear Regression, it gains in flexibility on the treatment of a dataset as the one chosen here.""")
